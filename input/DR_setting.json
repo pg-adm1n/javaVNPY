@@ -1,0 +1,34 @@
+{
+    "working": true,
+	"marketCloseTime": "15:05:00",
+
+    "tick":
+    [
+        ["rb1905", "CTP"],
+        ["m1905", "CTP"],
+        ["SR905", "CTP"],
+        ["IF1903", "CTP"],
+        ["IH1903", "CTP"],
+        ["IC1903", "CTP"]
+    ],
+
+    "bar":
+    [
+        ["rb1905", "CTP"],
+        ["m1905", "CTP"],
+        ["SR905", "CTP"],
+        ["IF1903", "CTP"],
+        ["IH1903", "CTP"],
+        ["IC1903", "CTP"]
+    ],
+
+    "active":
+    {
+        "rb.HOT": "rb1905",
+        "m.HOT": "m1905",
+        "SR.HOT": "SR905",
+        "IF.HOT": "IF1903",
+        "IH.HOT": "IH1903",
+        "IC.HOT": "IC1903"
+    }
+}

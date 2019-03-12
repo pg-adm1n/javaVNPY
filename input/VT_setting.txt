@@ -1,0 +1,16 @@
+# MongoDB相关
+mongoHost,localhost
+mongoPort,27017
+mongoLogging,true
+#
+# 日志设置
+logActive,true
+logLevel,debug
+logConsole,true
+logFile,true
+#
+# 日内锁仓代替平仓以节省手续费
+tdPenalty,IF;IH;IC
+#
+# 小数位精度
+maxDecimal,4

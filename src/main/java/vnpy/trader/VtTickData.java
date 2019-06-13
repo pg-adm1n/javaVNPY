@@ -56,6 +56,13 @@ public class VtTickData extends VtBaseData {
 	private int askVolume4;
 	private int askVolume5;
 
+	private double bt1;
+	private double st1;
+	private double bt2;
+	private double st2;
+	private double wpr;
+	private double ret;
+
 	public static VtTickData createFromGateway(VtGateway gateway, String symbol, String exchange,
             double lastPrice, int lastVolume,
             double highPrice, double lowPrice,
@@ -83,6 +90,54 @@ public class VtTickData extends VtBaseData {
 		tick.lowerLimit = lowerLimit;
 		return tick;
     }
+
+	public double getBt1() {
+		return bt1;
+	}
+
+	public void setBt1(double bt1) {
+		this.bt1 = bt1;
+	}
+
+	public double getSt1() {
+		return st1;
+	}
+
+	public void setSt1(double st1) {
+		this.st1 = st1;
+	}
+
+	public double getBt2() {
+		return bt2;
+	}
+
+	public void setBt2(double bt2) {
+		this.bt2 = bt2;
+	}
+
+	public double getSt2() {
+		return st2;
+	}
+
+	public void setSt2(double st2) {
+		this.st2 = st2;
+	}
+
+	public double getWpr() {
+		return wpr;
+	}
+
+	public void setWpr(double wpr) {
+		this.wpr = wpr;
+	}
+
+	public double getRet() {
+		return ret;
+	}
+
+	public void setRet(double ret) {
+		this.ret = ret;
+	}
 
 	
 	public String getSymbol() {

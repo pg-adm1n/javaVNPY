@@ -29,15 +29,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiFunction;
 import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.ql.exec.vector.BytesColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.DoubleColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.VectorizedRowBatch;
-import org.apache.hive.orc.OrcFile;
-import org.apache.hive.orc.Reader;
-import org.apache.hive.orc.RecordReader;
+import org.apache.orc.OrcFile;
+import org.apache.orc.Reader;
+import org.apache.orc.RecordReader;
 import org.bson.codecs.configuration.CodecRegistry;
 import org.bson.codecs.pojo.PojoCodecProvider;
 import org.bson.conversions.Bson;
@@ -212,110 +213,11 @@ public class BacktestingEngine implements TradingEngine {
         this.strategy.setName(this.strategy.getClassName());
     }
 
-    public static Stream getDataFromORCFile(String mainContractPathStr, String startDate, String endDate) {
-        Configuration conf = new Configuration();
-        conf.set("fs.defaultFS", "file:///");
-        Path file = new Path(mainContractPathStr);
-
-        // Can be modify as 常量
-        final DateTimeFormatter yyyyMMddFormatter = DateTimeFormatter.ofPattern("yyyyMMdd");
-        try {
-            Reader reader = OrcFile.createReader(file, OrcFile.readerOptions(conf));
-
-            RecordReader orcFile = reader.rows();
-
-            VectorizedRowBatch batch = reader.getSchema().createRowBatch();
-
-            return Stream.iterate(0, integer -> integer + 1)
-                .takeWhile(integer -> {
-                    try {
-                        // Check if have batch, if have then insert into batch
-                        return orcFile.nextBatch(batch);
-                    } catch (IOException e) {
-                        return false;
-                    }
-                })
-                .flatMap(integer -> {
-                    // flat the batch mode to row mode
-                    int size1 = batch.size;
-                    return Stream.iterate(0, i -> i + 1)
-                        .limit(size1)
-                        .map(i -> getTick(batch, i));
-                })
-                .filter(tick1 -> {
-                    //TODO:
-                    final LocalDate partition1Date = LocalDate.parse(tick1.getPartition1(), yyyyMMddFormatter);
-                    // 目前是不包含 如需包含 请自行 LocalDate.parse(startDate,yyyyMMddFormatter).plusDays(1)/LocalDate.parse(endDate,yyyyMMddFormatter).minusDays(1
-                    return partition1Date.isAfter(LocalDate.parse(startDate,yyyyMMddFormatter)) && partition1Date.isBefore(LocalDate.parse(endDate,yyyyMMddFormatter).minusDays(1));
-                });
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private static Tick getTick(VectorizedRowBatch batch, Integer i) {
-        final String contractName = ((BytesColumnVector) batch.cols[0]).toString(i);
-        final String tickTime = ((BytesColumnVector) batch.cols[1]).toString(i);
-        final DoubleColumnVector priceCol = (DoubleColumnVector) batch.cols[2];
-        final double price = priceCol.isRepeating ? priceCol.vector[0] : priceCol.vector[i];
-
-        final DoubleColumnVector cumOpenIntCol = (DoubleColumnVector) batch.cols[3];
-        final double cumOpenInt = cumOpenIntCol.isRepeating ? cumOpenIntCol.vector[0] : priceCol.vector[i];
-
-        final DoubleColumnVector openIntCol = (DoubleColumnVector) batch.cols[4];
-        final double openInt = openIntCol.isRepeating ? openIntCol.vector[0] : openIntCol.vector[i];
-
-        final DoubleColumnVector turnoverCol = (DoubleColumnVector) batch.cols[5];
-        final double turnover = turnoverCol.isRepeating ? turnoverCol.vector[0] : turnoverCol.vector[i];
-
-        final DoubleColumnVector qtyCol = (DoubleColumnVector) batch.cols[6];
-        final double qty = qtyCol.isRepeating ? qtyCol.vector[0] : qtyCol.vector[i];
-
-        final DoubleColumnVector bidCol = (DoubleColumnVector) batch.cols[7];
-        final double bid = bidCol.isRepeating ? bidCol.vector[0] : bidCol.vector[i];
-
-        final DoubleColumnVector askCol = (DoubleColumnVector) batch.cols[8];
-        final double ask = askCol.isRepeating ? askCol.vector[0] : askCol.vector[i];
-
-        final DoubleColumnVector bidQtyCol = (DoubleColumnVector) batch.cols[9];
-        final double bidQty = bidQtyCol.isRepeating ? bidQtyCol.vector[0] : bidQtyCol.vector[i];
-
-        final DoubleColumnVector askQtyCol = (DoubleColumnVector) batch.cols[10];
-        final double askQty = askQtyCol.isRepeating ? askQtyCol.vector[0] : askQtyCol.vector[i];
-
-        final DoubleColumnVector wprCol = (DoubleColumnVector) batch.cols[11];
-        final double wpr = wprCol.isRepeating ? wprCol.vector[0] : wprCol.vector[i];
-
-        final DoubleColumnVector retCol = (DoubleColumnVector) batch.cols[12];
-        final double ret = retCol.isRepeating ? retCol.vector[0] : retCol.vector[i];
-
-        final String partition1 = ((BytesColumnVector) batch.cols[13]).toString(i);
-        final String partition2 = ((BytesColumnVector) batch.cols[14]).toString(i);
-        final String date = ((BytesColumnVector) batch.cols[15]).toString(i);
-        final String time = ((BytesColumnVector) batch.cols[16]).toString(i);
-        final String ms = ((BytesColumnVector) batch.cols[17]).toString(i);
-
-        final DoubleColumnVector bt1Col = (DoubleColumnVector) batch.cols[18];
-        final double bt1 = bt1Col.isRepeating ? bt1Col.vector[0] : bt1Col.vector[i];
-
-        final DoubleColumnVector bt2Col = (DoubleColumnVector) batch.cols[19];
-        final double bt2 = bt2Col.isRepeating ? bt2Col.vector[0] : bt2Col.vector[i];
-
-        final DoubleColumnVector st1Col = (DoubleColumnVector) batch.cols[20];
-        final double st1 = st1Col.isRepeating ? st1Col.vector[0] : st1Col.vector[i];
-
-        final DoubleColumnVector st2Col = (DoubleColumnVector) batch.cols[21];
-        final double st2 = st2Col.isRepeating ? st2Col.vector[0] : st2Col.vector[i];
-
-        //修改 返回的变量类型
-        return new Tick(contractName, tickTime, price, cumOpenInt, openInt, turnover, qty, bid, ask, bidQty, askQty, wpr, ret, partition1, partition2, date, time, ms, bt1, bt2, st1,
-            st2);
-    }
 
     // 开始跑回测
     public void runBacktesting() {
         // 载入历史数据
-        loadHistoryData();
+        //loadHistoryData();
 
         // 首先根据回测模式，确认要使用的数据类
         Class<?> dataClass = null;
@@ -340,14 +242,27 @@ public class BacktestingEngine implements TradingEngine {
 
         this.output("开始回放数据");
 
-        for (Object d : this.dbCursor) {
-            func.invoke(dataClass.cast(d));
-        }
+        // old version
+        //for (Object d : this.dbCursor) {
+        //    func.invoke(dataClass.cast(d));
+        //}
 
-        // 新写法
-        final Stream data = getDataFromORCFile("rb1610", "20160101", "20160701");
+        // new version
         Class<?> finalDataClass = dataClass;
-        data.forEach(o -> func.invoke(finalDataClass.cast(o)));
+        Stream<VtTickData> vtTickDataStream = null;
+        try {
+            vtTickDataStream= readStreamFromORCFile(this.symbol, BacktestingEngine::convertToVtTickData);
+        } catch (IOException e) {
+        }
+        assert vtTickDataStream != null;
+        vtTickDataStream
+            .takeWhile(tick -> !tick.getDatetime().isAfter(this.dataEndDate))
+            .dropWhile(tick -> tick.getDatetime().isBefore(dataStartDate))
+            .forEach(o -> func.invoke(finalDataClass.cast(o)));
+
+        //final Stream data = getDataFromORCFile("rb1610", "20160101", "20160701");
+
+        //data.forEach(o -> func.invoke(finalDataClass.cast(o)));
 
         this.output("数据回放结束");
     }
@@ -1076,6 +991,109 @@ public class BacktestingEngine implements TradingEngine {
     private String formatNumber(double n) {
         DecimalFormat df = new DecimalFormat("###,###,###,##0.00");
         return df.format(n);
+    }
+
+    //------------------------------------------------------New verson read from ORC---------------------------------------------
+    public static <T> Stream<T> readStreamFromORCFile(String pathStr, BiFunction<VectorizedRowBatch, Integer, T> converter) throws IOException {
+
+        Configuration conf = new Configuration();
+        conf.set("fs.defaultFS", "file:///");
+        Path file = new Path(pathStr);
+
+        Reader reader = OrcFile.createReader(file, OrcFile.readerOptions(conf));
+
+        RecordReader orcFile = reader.rows();
+
+        VectorizedRowBatch batch = reader.getSchema().createRowBatch();
+
+        return Stream.iterate(0, integer -> integer + 1)
+            .takeWhile(integer -> {
+                try {
+                    // Check if have batch, if have then insert into batch
+                    return orcFile.nextBatch(batch);
+                } catch (IOException e) {
+                    return false;
+                }
+            })
+            .flatMap(integer -> {
+                int size = batch.size;
+                return Stream.iterate(0, i -> i + 1)
+                    .limit(size)
+                    .map(i -> converter.apply(batch, i));
+            });
+    }
+
+    public static VtTickData convertToVtTickData(VectorizedRowBatch batch, Integer i) {
+        final String contractName = ((BytesColumnVector) batch.cols[0]).toString(i);
+        final String tickTime = ((BytesColumnVector) batch.cols[1]).toString(i);
+        final DoubleColumnVector priceCol = (DoubleColumnVector) batch.cols[2];
+        final double price = priceCol.isRepeating ? priceCol.vector[0] : priceCol.vector[i];
+
+        final DoubleColumnVector cumOpenIntCol = (DoubleColumnVector) batch.cols[3];
+        final double cumOpenInt = cumOpenIntCol.isRepeating ? cumOpenIntCol.vector[0] : priceCol.vector[i];
+
+        final DoubleColumnVector openIntCol = (DoubleColumnVector) batch.cols[4];
+        final double openInt = openIntCol.isRepeating ? openIntCol.vector[0] : openIntCol.vector[i];
+
+        final DoubleColumnVector turnoverCol = (DoubleColumnVector) batch.cols[5];
+        final double turnover = turnoverCol.isRepeating ? turnoverCol.vector[0] : turnoverCol.vector[i];
+
+        final DoubleColumnVector qtyCol = (DoubleColumnVector) batch.cols[6];
+        final double qty = qtyCol.isRepeating ? qtyCol.vector[0] : qtyCol.vector[i];
+
+        final DoubleColumnVector bidCol = (DoubleColumnVector) batch.cols[7];
+        final double bid = bidCol.isRepeating ? bidCol.vector[0] : bidCol.vector[i];
+
+        final DoubleColumnVector askCol = (DoubleColumnVector) batch.cols[8];
+        final double ask = askCol.isRepeating ? askCol.vector[0] : askCol.vector[i];
+
+        final DoubleColumnVector bidQtyCol = (DoubleColumnVector) batch.cols[9];
+        final double bidQty = bidQtyCol.isRepeating ? bidQtyCol.vector[0] : bidQtyCol.vector[i];
+
+        final DoubleColumnVector askQtyCol = (DoubleColumnVector) batch.cols[10];
+        final double askQty = askQtyCol.isRepeating ? askQtyCol.vector[0] : askQtyCol.vector[i];
+
+        final DoubleColumnVector wprCol = (DoubleColumnVector) batch.cols[11];
+        final double wpr = wprCol.isRepeating ? wprCol.vector[0] : wprCol.vector[i];
+
+        final DoubleColumnVector retCol = (DoubleColumnVector) batch.cols[12];
+        final double ret = retCol.isRepeating ? retCol.vector[0] : retCol.vector[i];
+
+        final String date = ((BytesColumnVector) batch.cols[15]).toString(i);
+        final String time = ((BytesColumnVector) batch.cols[16]).toString(i);
+
+        final DoubleColumnVector bt1Col = (DoubleColumnVector) batch.cols[18];
+        final double bt1 = bt1Col.isRepeating ? bt1Col.vector[0] : bt1Col.vector[i];
+
+        final DoubleColumnVector bt2Col = (DoubleColumnVector) batch.cols[19];
+        final double bt2 = bt2Col.isRepeating ? bt2Col.vector[0] : bt2Col.vector[i];
+
+        final DoubleColumnVector st1Col = (DoubleColumnVector) batch.cols[20];
+        final double st1 = st1Col.isRepeating ? st1Col.vector[0] : st1Col.vector[i];
+
+        final DoubleColumnVector st2Col = (DoubleColumnVector) batch.cols[21];
+        final double st2 = st2Col.isRepeating ? st2Col.vector[0] : st2Col.vector[i];
+
+        final VtTickData vtTickData = new VtTickData();
+        vtTickData.setSymbol(contractName);
+        vtTickData.setLastPrice(price);
+        vtTickData.setLastVolume((int) qty);
+        vtTickData.setOpenInterest((int) openInt);
+        vtTickData.setTime(time);
+        vtTickData.setDate(date);
+        vtTickData.setDatetime(LocalDateTime.parse(tickTime, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS")));
+        vtTickData.setTurnover(turnover);
+        vtTickData.setBidPrice1(bid);
+        vtTickData.setAskPrice1(ask);
+        vtTickData.setBidVolume1((int) bidQty);
+        vtTickData.setAskVolume1((int) askQty);
+        vtTickData.setBt1(bt1);
+        vtTickData.setBt2(bt2);
+        vtTickData.setSt1(st1);
+        vtTickData.setSt2(st2);
+        vtTickData.setWpr(wpr);
+        vtTickData.setRet(ret);
+        return vtTickData;
     }
 
     public static void main(String[] args) {
